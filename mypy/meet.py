@@ -493,7 +493,17 @@ class TypeMeetVisitor(TypeVisitor[ProperType]):
                     args = []  # type: List[Type]
                     for i in range(len(t.args)):
                         args.append(self.meet(t.args[i], si.args[i]))
-                    return Instance(t.type, args)
+
+                    if t.last_known_value == si.last_known_value:
+                        last_known_value = t.last_known_value
+                    elif t.last_known_value and not si.last_known_value:
+                        last_known_value = t.last_known_value
+                    elif not t.last_known_value and si.last_known_value:
+                        last_known_value = si.last_known_value
+                    else:
+                        last_known_value = None
+
+                    return Instance(t.type, args, last_known_value=last_known_value)
                 else:
                     if state.strict_optional:
                         return UninhabitedType()

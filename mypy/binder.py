@@ -179,6 +179,8 @@ class ConditionalTypeBinder:
         options are the same.
         """
 
+        from mypy.erasetype import remove_instance_last_known_values
+
         frames = [f for f in frames if not f.unreachable]
         changed = False
         keys = set(key for f in frames for key in f.types)
@@ -191,6 +193,7 @@ class ConditionalTypeBinder:
                 # (current_value must be None), and we still don't
                 # know anything about key in at least one possible frame.
                 continue
+            resulting_values = [remove_instance_last_known_values(t) for t in resulting_values if t is not None]
 
             type = resulting_values[0]
             assert type is not None

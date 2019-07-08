@@ -239,11 +239,8 @@ class ExpressionChecker(ExpressionVisitor[Type]):
     def analyze_var_ref(self, var: Var, context: Context) -> Type:
         if var.type:
             var_type = get_proper_type(var.type)
-            if isinstance(var_type, Instance):
-                if self.is_literal_context() and var_type.last_known_value is not None:
-                    return var_type.last_known_value
-                if var.name in {'True', 'False'}:
-                    return self.infer_literal_expr_type(var.name == 'True', 'builtins.bool')
+            if isinstance(var_type, Instance) and var.name in {'True', 'False'}:
+                return self.infer_literal_expr_type(var.name == 'True', 'builtins.bool')
             return var.type
         else:
             if not var.is_ready and self.chk.in_checked_function():
@@ -3872,6 +3869,7 @@ class ExpressionChecker(ExpressionVisitor[Type]):
         If 'skip_non_overlapping' is True, return None if the type and restriction are
         non-overlapping.
         """
+        output = known_type
         if literal(expr) >= LITERAL_TYPE:
             restriction = self.chk.binder.get(expr)
             # If the current node is deferred, some variables may get Any types that they
@@ -3884,8 +3882,13 @@ class ExpressionChecker(ExpressionVisitor[Type]):
                         not is_overlapping_types(known_type, restriction,
                                                  prohibit_none_typevar_overlap=True)):
                     return None
-                return narrow_declared_type(known_type, restriction)
-        return known_type
+                output = narrow_declared_type(known_type, restriction)
+
+        output_proper = get_proper_type(output)
+        if self.is_literal_context() and isinstance(output_proper, Instance):
+            return output_proper.last_known_value or output
+        else:
+            return output
 
 
 def has_any_type(t: Type) -> bool:
