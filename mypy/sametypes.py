@@ -48,6 +48,16 @@ def is_same_types(a1: Sequence[Type], a2: Sequence[Type]) -> bool:
     return True
 
 
+def are_all_same_types(types: Sequence[Type]) -> bool:
+    if len(types) <= 1:
+        return True
+    t = types[0]
+    for s in types[1:]:
+        if not is_same_type(t, s):
+            return False
+    return True
+
+
 class SameTypeVisitor(TypeVisitor[bool]):
     """Visitor for checking whether two types are the 'same' type."""
 
