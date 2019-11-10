@@ -3932,8 +3932,8 @@ class TypeChecker(NodeVisitor[None], CheckerPluginInterface):
         #
         non_optional_types = [t for t in expr_types if not is_optional(t)]
 
-        if_map = {}
-        else_map = {}
+        if_map = {}  # type: Dict[Expression, Type]
+        else_map = {}  # type: Dict[Expression, Type]
         for i in assignable_operand_indices:
             expr_type = operand_types[i]
             if not is_optional(expr_type):
@@ -4888,7 +4888,7 @@ def is_private(node_name: str) -> bool:
     return node_name.startswith('__') and not node_name.endswith('__')
 
 
-def uses_default_equality_checks(typ: ProperType) -> bool:
+def uses_default_equality_checks(typ: Type) -> bool:
     """Returns True if we the given type is using default builtin __eq__ and __new__ checks.
 
     We can use this information to make more aggressive inferences when analyzing
@@ -4897,6 +4897,7 @@ def uses_default_equality_checks(typ: ProperType) -> bool:
     When in doubt, this function will conservatively bias towards
     returning False.
     """
+    typ = get_proper_type(typ)
     if isinstance(typ, UnionType):
         return all(map(uses_default_equality_checks, typ.items))
     if isinstance(typ, NoneType):
