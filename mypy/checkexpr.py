@@ -442,20 +442,23 @@ class ExpressionChecker(ExpressionVisitor[Type]):
     def check_runtime_protocol_test(self, e: CallExpr) -> None:
         for expr in mypy.checker.flatten(e.args[1]):
             tp = get_proper_type(self.chk.type_map[expr])
-            if (isinstance(tp, CallableType) and tp.is_type_obj() and
-                    tp.type_object().is_protocol and
-                    not tp.type_object().runtime_protocol):
+            if not isinstance(tp, CallableType):
+                continue
+            tp_obj = tp.try_type_object()
+            if (tp_obj and tp_obj.is_protocol and not tp_obj.runtime_protocol):
                 self.chk.fail(message_registry.RUNTIME_PROTOCOL_EXPECTED, e)
 
     def check_protocol_issubclass(self, e: CallExpr) -> None:
         for expr in mypy.checker.flatten(e.args[1]):
             tp = get_proper_type(self.chk.type_map[expr])
-            if (isinstance(tp, CallableType) and tp.is_type_obj() and
-                    tp.type_object().is_protocol):
-                attr_members = non_method_protocol_members(tp.type_object())
+            if not isinstance(tp, CallableType):
+                continue
+
+            tp_obj = tp.try_type_object()
+            if tp_obj and tp_obj.is_protocol:
+                attr_members = non_method_protocol_members(tp_obj)
                 if attr_members:
-                    self.chk.msg.report_non_method_protocol(tp.type_object(),
-                                                            attr_members, e)
+                    self.chk.msg.report_non_method_protocol(tp_obj, attr_members, e)
 
     def check_typeddict_call(self, callee: TypedDictType,
                              arg_kinds: List[int],
@@ -938,19 +941,18 @@ class ExpressionChecker(ExpressionVisitor[Type]):
             # An Enum() call that failed SemanticAnalyzerPass2.check_enum_call().
             return callee.ret_type, callee
 
-        if (callee.is_type_obj() and callee.type_object().is_abstract
+        type = callee.try_type_object()
+        if (type and type.is_abstract
                 # Exception for Type[...]
                 and not callee.from_type_type
-                and not callee.type_object().fallback_to_any):
-            type = callee.type_object()
+                and not type.fallback_to_any):
             self.msg.cannot_instantiate_abstract_class(
-                callee.type_object().name, type.abstract_attributes,
-                context)
-        elif (callee.is_type_obj() and callee.type_object().is_protocol
+                type.name, type.abstract_attributes, context)
+        elif (type and type.is_protocol
               # Exception for Type[...]
               and not callee.from_type_type):
             self.chk.fail(message_registry.CANNOT_INSTANTIATE_PROTOCOL
-                          .format(callee.type_object().name), context)
+                          .format(type.name), context)
 
         formal_to_actual = map_actuals_to_formals(
             arg_kinds, arg_names,

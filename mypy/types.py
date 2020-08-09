@@ -925,6 +925,9 @@ class FunctionLike(ProperType):
     def type_object(self) -> mypy.nodes.TypeInfo: pass
 
     @abstractmethod
+    def try_type_object(self) -> Optional[mypy.nodes.TypeInfo]: pass
+
+    @abstractmethod
     def items(self) -> List['CallableType']: pass
 
     @abstractmethod
@@ -1093,6 +1096,18 @@ class CallableType(FunctionLike):
             ret = ret.partial_fallback
         assert isinstance(ret, Instance)
         return ret.type
+
+    def try_type_object(self) -> Optional[mypy.nodes.TypeInfo]:
+        if self.fallback.type.is_metaclass():
+            ret = get_proper_type(self.ret_type)
+            if isinstance(ret, TypeVarType):
+                ret = get_proper_type(ret.upper_bound)
+            if isinstance(ret, TupleType):
+                ret = ret.partial_fallback
+            assert isinstance(ret, Instance)
+            return ret.type
+        else:
+            return None
 
     def accept(self, visitor: 'TypeVisitor[T]') -> T:
         return visitor.visit_callable_type(self)
@@ -1282,6 +1297,9 @@ class Overloaded(FunctionLike):
         # All the items must have the same type object, so it's sufficient to
         # query only (any) one of them.
         return self._items[0].type_object()
+
+    def try_type_object(self) -> Optional[mypy.nodes.TypeInfo]:
+        return self._items[0].try_type_object()
 
     def with_name(self, name: str) -> 'Overloaded':
         ni = []  # type: List[CallableType]

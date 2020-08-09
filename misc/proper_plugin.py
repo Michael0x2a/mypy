@@ -50,17 +50,18 @@ def isinstance_proper_hook(ctx: FunctionContext) -> Type:
 def is_special_target(right: ProperType) -> bool:
     """Whitelist some special cases for use in isinstance() with improper types."""
     if isinstance(right, CallableType) and right.is_type_obj():
-        if right.type_object().fullname == 'builtins.tuple':
+        right_fullname = right.type_object().fullname
+        if right_fullname == 'builtins.tuple':
             # Used with Union[Type, Tuple[Type, ...]].
             return True
-        if right.type_object().fullname in (
+        if right_fullname in {
             'mypy.types.Type',
             'mypy.types.ProperType',
             'mypy.types.TypeAliasType'
-        ):
+        }:
             # Special case: things like assert isinstance(typ, ProperType) are always OK.
             return True
-        if right.type_object().fullname in (
+        if right_fullname in {
             'mypy.types.UnboundType',
             'mypy.types.TypeVarType',
             'mypy.types.RawExpressionType',
@@ -70,7 +71,7 @@ def is_special_target(right: ProperType) -> bool:
             'mypy.types.CallableArgument',
             'mypy.types.PartialType',
             'mypy.types.ErasedType'
-        ):
+        }:
             # Special case: these are not valid targets for a type alias and thus safe.
             # TODO: introduce a SyntheticType base to simplify this?
             return True

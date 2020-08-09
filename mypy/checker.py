@@ -2126,15 +2126,17 @@ class TypeChecker(NodeVisitor[None], CheckerPluginInterface):
                 # variables with explicit type Type[A], where A is protocol or abstract.
                 rvalue_type = get_proper_type(rvalue_type)
                 lvalue_type = get_proper_type(lvalue_type)
-                if (isinstance(rvalue_type, CallableType) and rvalue_type.is_type_obj() and
-                        (rvalue_type.type_object().is_abstract or
-                         rvalue_type.type_object().is_protocol) and
-                        isinstance(lvalue_type, TypeType) and
-                        isinstance(lvalue_type.item, Instance) and
-                        (lvalue_type.item.type.is_abstract or
-                         lvalue_type.item.type.is_protocol)):
-                    self.msg.concrete_only_assign(lvalue_type, rvalue)
-                    return
+                if isinstance(rvalue_type, CallableType):
+                    rvalue_type_obj = rvalue_type.try_type_object()
+                    if (rvalue_type_obj and
+                            (rvalue_type_obj.is_abstract or
+                             rvalue_type_obj.is_protocol) and
+                            isinstance(lvalue_type, TypeType) and
+                            isinstance(lvalue_type.item, Instance) and
+                            (lvalue_type.item.type.is_abstract or
+                             lvalue_type.item.type.is_protocol)):
+                        self.msg.concrete_only_assign(lvalue_type, rvalue)
+                        return
                 if rvalue_type and infer_lvalue_type and not isinstance(lvalue_type, PartialType):
                     # Don't use type binder for definitions of special forms, like named tuples.
                     if not (isinstance(lvalue, NameExpr) and lvalue.is_special_form):
@@ -5042,10 +5044,11 @@ def is_literal_enum(type_map: Mapping[Expression, Type], n: Expression) -> bool:
     if not isinstance(parent_type, FunctionLike) or not isinstance(member_type, LiteralType):
         return False
 
-    if not parent_type.is_type_obj():
+    parent_type_obj = parent_type.is_type_obj()
+    if not parent_type_obj is None:
         return False
 
-    return member_type.is_enum_literal() and member_type.fallback.type == parent_type.type_object()
+    return member_type.is_enum_literal() and member_type.fallback.type == parent_type_obj
 
 
 def is_literal_none(n: Expression) -> bool:
