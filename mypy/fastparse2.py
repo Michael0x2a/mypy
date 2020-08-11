@@ -473,7 +473,7 @@ class ASTConverter:
         # Indicate that type should be wrapped in an Optional if arg is initialized to None.
         optional = isinstance(initializer, NameExpr) and initializer.name == 'None'
         if isinstance(type, UnboundType):
-            type.optional = optional
+            type.set_optional_status(optional)
 
     def transform_args(self,
                        n: ast27.arguments,

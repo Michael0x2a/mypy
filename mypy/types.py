@@ -166,14 +166,19 @@ class TypeAliasType(Type):
     can be represented in a tree-like manner.
     """
 
-    __slots__ = ('alias', 'args', 'line', 'column', 'type_ref')
+    __slots__ = ('alias', 'args', 'line', 'column', 'type_ref', '_hash')
 
     def __init__(self, alias: Optional[mypy.nodes.TypeAlias], args: List[Type],
                  line: int = -1, column: int = -1) -> None:
         self.alias = alias
-        self.args = args
+        self.args = args  # type: Final
         self.type_ref = None  # type: Optional[str]
+        self._hash = hash((alias, tuple(args)))
         super().__init__(line, column)
+
+    def set_alias(self, new_alias: Optional[mypy.nodes.TypeAlias]) -> None:
+        self.alias = new_alias
+        self._hash = hash((self.alias, tuple(self.args)))
 
     def _expand_once(self) -> Type:
         """Expand to the target type exactly once.
@@ -234,14 +239,14 @@ class TypeAliasType(Type):
         return visitor.visit_type_alias_type(self)
 
     def __hash__(self) -> int:
-        return hash((self.alias, tuple(self.args)))
+        return self._hash
 
     def __eq__(self, other: object) -> bool:
         # Note: never use this to determine subtype relationships, use is_subtype().
-        if not isinstance(other, TypeAliasType):
-            return NotImplemented
-        return (self.alias == other.alias
-                and self.args == other.args)
+        if isinstance(other, TypeAliasType):
+            return self.alias == other.alias and self.args == other.args
+        else:
+            return False
 
     def serialize(self) -> JsonDict:
         assert self.alias is not None
@@ -275,32 +280,38 @@ class ProperType(Type):
 
     Every type except TypeAliasType must inherit from this type.
     """
+    __slots__ = ()
 
 
 class TypeVarId:
-    # A type variable is uniquely identified by its raw id and meta level.
-
-    # For plain variables (type parameters of generic classes and
-    # functions) raw ids are allocated by semantic analysis, using
-    # positive ids 1, 2, ... for generic class parameters and negative
-    # ids -1, ... for generic function type arguments. This convention
-    # is only used to keep type variable ids distinct when allocating
-    # them; the type checker makes no distinction between class and
-    # function type variables.
-
-    # Metavariables are allocated unique ids starting from 1.
-    raw_id = 0  # type: int
-
-    # Level of the variable in type inference. Currently either 0 for
-    # declared types, or 1 for type inference metavariables.
-    meta_level = 0  # type: int
+    __slots__ = ("raw_id", "meta_level", "_hash")
 
     # Class variable used for allocating fresh ids for metavariables.
     next_raw_id = 1  # type: ClassVar[int]
 
     def __init__(self, raw_id: int, meta_level: int = 0) -> None:
-        self.raw_id = raw_id
+        # A type variable is uniquely identified by its raw id and meta level.
+
+        # For plain variables (type parameters of generic classes and
+        # functions) raw ids are allocated by semantic analysis, using
+        # positive ids 1, 2, ... for generic class parameters and negative
+        # ids -1, ... for generic function type arguments. This convention
+        # is only used to keep type variable ids distinct when allocating
+        # them; the type checker makes no distinction between class and
+        # function type variables.
+
+        # Metavariables are allocated unique ids starting from 1.
+        self.raw_id = raw_id  # type: Final
+
+        # Level of the variable in type inference. Currently either 0 for
+        # declared types, or 1 for type inference metavariables.
         self.meta_level = meta_level
+
+        self._hash = hash((raw_id, meta_level))
+
+    def freeze(self) -> None:
+        self.meta_level = 0
+        self._hash = hash((self.raw_id, self.meta_level))
 
     @staticmethod
     def new(meta_level: int) -> 'TypeVarId':
@@ -318,11 +329,8 @@ class TypeVarId:
         else:
             return False
 
-    def __ne__(self, other: object) -> bool:
-        return not (self == other)
-
     def __hash__(self) -> int:
-        return hash((self.raw_id, self.meta_level))
+        return self._hash
 
     def is_meta_var(self) -> bool:
         return self.meta_level > 0
@@ -330,27 +338,29 @@ class TypeVarId:
 
 class TypeVarDef(mypy.nodes.Context):
     """Definition of a single type variable."""
-
-    name = ''  # Name (may be qualified)
-    fullname = ''  # Fully qualified name
-    id = None  # type: TypeVarId
-    values = None  # type: List[Type]  # Value restriction, empty list if no restriction
-    upper_bound = None  # type: Type
-    variance = INVARIANT  # type: int
+    __slots__ = ("name", "fullname", "id", "values", "upper_bound", "variance")
 
     def __init__(self, name: str, fullname: str, id: Union[TypeVarId, int], values: List[Type],
                  upper_bound: Type, variance: int = INVARIANT, line: int = -1,
                  column: int = -1) -> None:
         super().__init__(line, column)
         assert values is not None, "No restrictions must be represented by empty list"
-        self.name = name
-        self.fullname = fullname
+
+        # Name (may be qualified)
+        self.name = name  # type: Final
+
+        # Fully qualified name
+        self.fullname = fullname  # type: Final
+
         if isinstance(id, int):
             id = TypeVarId(id)
-        self.id = id
-        self.values = values
-        self.upper_bound = upper_bound
-        self.variance = variance
+        self.id = id  # type: Final
+
+        # Value restriction, empty list if no restriction
+        self.values = values  # type: Final
+
+        self.upper_bound = upper_bound  # type: Final
+        self.variance = variance  # type: Final
 
     @staticmethod
     def new_unification_variable(old: 'TypeVarDef') -> 'TypeVarDef':
@@ -393,7 +403,7 @@ class UnboundType(ProperType):
     """Instance type that has not been bound during semantic analysis."""
 
     __slots__ = ('name', 'args', 'optional', 'empty_tuple_index',
-                 'original_str_expr', 'original_str_fallback')
+                 'original_str_expr', 'original_str_fallback', '_hash')
 
     def __init__(self,
                  name: Optional[str],
@@ -409,12 +419,15 @@ class UnboundType(ProperType):
         if not args:
             args = []
         assert name is not None
-        self.name = name
+        self.name = name  # type: Final
         self.args = tuple(args)
+
         # Should this type be wrapped in an Optional?
         self.optional = optional
+
         # Special case for X[()]
         self.empty_tuple_index = empty_tuple_index
+
         # If this UnboundType was originally defined as a str or bytes, keep track of
         # the original contents of that string-like thing. This way, if this UnboundExpr
         # ever shows up inside of a LiteralType, we can determine whether that
@@ -430,6 +443,25 @@ class UnboundType(ProperType):
         # so we don't have to try and recompute it later
         self.original_str_expr = original_str_expr
         self.original_str_fallback = original_str_fallback
+        self._hash = self._recompute_hash()
+
+    def _recompute_hash(self) -> int:
+        return hash((self.name, self.optional, tuple(self.args), self.original_str_expr))
+
+    def set_args(self, args: Iterable[Type]) -> None:
+        self.args = tuple(args)
+        if not self.args:
+            self.empty_tuple_index = True
+        self._hash = self._recompute_hash()
+
+    def set_optional_status(self, optional: bool) -> None:
+        self.optional = optional
+        self._hash = self._recompute_hash()
+
+    def set_original_str_info(self, expr: str, fallback: str) -> None:
+        self.original_str_expr = expr
+        self.original_str_fallback = fallback
+        self._hash = self._recompute_hash()
 
     def copy_modified(self,
                       args: Bogus[Optional[Sequence[Type]]] = _dummy,
@@ -451,14 +483,15 @@ class UnboundType(ProperType):
         return visitor.visit_unbound_type(self)
 
     def __hash__(self) -> int:
-        return hash((self.name, self.optional, tuple(self.args), self.original_str_expr))
+        return self._hash
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, UnboundType):
-            return NotImplemented
-        return (self.name == other.name and self.optional == other.optional and
-                self.args == other.args and self.original_str_expr == other.original_str_expr and
-                self.original_str_fallback == other.original_str_fallback)
+        if isinstance(other, UnboundType):
+            return (self.name == other.name and self.optional == other.optional and
+                    self.args == other.args and self.original_str_expr == other.original_str_expr and
+                    self.original_str_fallback == other.original_str_fallback)
+        else:
+            return False
 
     def serialize(self) -> JsonDict:
         return {'.class': 'UnboundType',
@@ -483,16 +516,14 @@ class CallableArgument(ProperType):
 
     Note that this is a synthetic type for helping parse ASTs, not a real type.
     """
-    typ = None          # type: Type
-    name = None         # type: Optional[str]
-    constructor = None  # type: Optional[str]
+    __slots__ = ("typ", "name", "constructor")
 
     def __init__(self, typ: Type, name: Optional[str], constructor: Optional[str],
                  line: int = -1, column: int = -1) -> None:
         super().__init__(line, column)
-        self.typ = typ
-        self.name = name
-        self.constructor = constructor
+        self.typ = typ  # type: Final
+        self.name = name  # type: Final
+        self.constructor = constructor  # type: Final
 
     def accept(self, visitor: 'TypeVisitor[T]') -> T:
         assert isinstance(visitor, SyntheticTypeVisitor)
@@ -510,12 +541,11 @@ class TypeList(ProperType):
     but a syntactic AST construct. UnboundTypes can also have TypeList
     types before they are processed into Callable types.
     """
-
-    items = None  # type: List[Type]
+    __slots__ = ("items",)
 
     def __init__(self, items: List[Type], line: int = -1, column: int = -1) -> None:
         super().__init__(line, column)
-        self.items = items
+        self.items = items  # type: Final
 
     def accept(self, visitor: 'TypeVisitor[T]') -> T:
         assert isinstance(visitor, SyntheticTypeVisitor)
@@ -528,7 +558,7 @@ class TypeList(ProperType):
 class AnyType(ProperType):
     """The type 'Any'."""
 
-    __slots__ = ('type_of_any', 'source_any', 'missing_import_name')
+    __slots__ = ('type_of_any', 'source_any', 'missing_import_name', "_hash")
 
     def __init__(self,
                  type_of_any: int,
@@ -537,17 +567,18 @@ class AnyType(ProperType):
                  line: int = -1,
                  column: int = -1) -> None:
         super().__init__(line, column)
-        self.type_of_any = type_of_any
+        self.type_of_any = type_of_any  # type: Final
         # If this Any was created as a result of interacting with another 'Any', record the source
         # and use it in reports.
-        self.source_any = source_any
         if source_any and source_any.source_any:
-            self.source_any = source_any.source_any
+            source_any = source_any.source_any
+        self.source_any = source_any  # type: Final[Optional[AnyType]]
 
-        if source_any is None:
-            self.missing_import_name = missing_import_name
-        else:
-            self.missing_import_name = source_any.missing_import_name
+        if source_any is not None:
+            missing_import_name = source_any.missing_import_name
+        self.missing_import_name = missing_import_name  # type: Final[Optional[str]]
+
+        self._hash = hash(AnyType)  # type: Final
 
         # Only unimported type anys and anys from other anys should have an import name
         assert (missing_import_name is None or
@@ -578,7 +609,7 @@ class AnyType(ProperType):
                        line=self.line, column=self.column)
 
     def __hash__(self) -> int:
-        return hash(AnyType)
+        return self._hash
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, AnyType)
@@ -611,15 +642,18 @@ class UninhabitedType(ProperType):
         is_subtype(UninhabitedType, T) = True
     """
 
-    is_noreturn = False  # Does this come from a NoReturn?  Purely for error messages.
-    # It is important to track whether this is an actual NoReturn type, or just a result
-    # of ambiguous type inference, in the latter case we don't want to mark a branch as
-    # unreachable in binder.
-    ambiguous = False  # Is this a result of inference for a variable without constraints?
+    __slots__ = ("is_noreturn", "ambiguous", "_hash")
 
     def __init__(self, is_noreturn: bool = False, line: int = -1, column: int = -1) -> None:
         super().__init__(line, column)
-        self.is_noreturn = is_noreturn
+        self.is_noreturn = is_noreturn  # type: Final
+
+        # It is important to track whether this is an actual NoReturn type, or just a result
+        # of ambiguous type inference, in the latter case we don't want to mark a branch as
+        # unreachable in binder.
+        self.ambiguous = False
+
+        self._hash = hash(UninhabitedType)  # type: Final
 
     def can_be_true_default(self) -> bool:
         return False
@@ -631,7 +665,7 @@ class UninhabitedType(ProperType):
         return visitor.visit_uninhabited_type(self)
 
     def __hash__(self) -> int:
-        return hash(UninhabitedType)
+        return self._hash
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, UninhabitedType)
@@ -652,16 +686,17 @@ class NoneType(ProperType):
     This type can be written by users as 'None'.
     """
 
-    __slots__ = ()
+    __slots__ = ("_hash",)
 
     def __init__(self, line: int = -1, column: int = -1) -> None:
         super().__init__(line, column)
+        self._hash = hash(NoneType)  # type: Final
 
     def can_be_true_default(self) -> bool:
         return False
 
     def __hash__(self) -> int:
-        return hash(NoneType)
+        return self._hash
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, NoneType)
@@ -689,6 +724,7 @@ class ErasedType(ProperType):
     This is used during type inference. This has the special property that
     it is ignored during type inference.
     """
+    __slots__ = ()
 
     def accept(self, visitor: 'TypeVisitor[T]') -> T:
         return visitor.visit_erased_type(self)
@@ -700,11 +736,12 @@ class DeletedType(ProperType):
     These can be used as lvalues but not rvalues.
     """
 
-    source = ''  # type: Optional[str]  # May be None; name that generated this value
+    __slots__ = ("source",)
 
     def __init__(self, source: Optional[str] = None, line: int = -1, column: int = -1) -> None:
         super().__init__(line, column)
-        self.source = source
+        # May be None; name that generated this value
+        self.source = source  # type: Final
 
     def accept(self, visitor: 'TypeVisitor[T]') -> T:
         return visitor.visit_deleted_type(self)
@@ -858,30 +895,37 @@ class TypeVarType(ProperType):
     type variable (id < 0).
     """
 
-    __slots__ = ('name', 'fullname', 'id', 'values', 'upper_bound', 'variance')
+    __slots__ = ('name', 'fullname', 'id', 'values', 'upper_bound', 'variance', '_hash')
 
     def __init__(self, binder: TypeVarDef, line: int = -1, column: int = -1) -> None:
         super().__init__(line, column)
-        self.name = binder.name  # Name of the type variable (for messages and debugging)
-        self.fullname = binder.fullname  # type: str
-        self.id = binder.id  # type: TypeVarId
+        # Name of the type variable (for messages and debugging)
+        self.name = binder.name  # type: Final
+        self.fullname = binder.fullname  # type: Final[str]
+        self.id = binder.id  # type: Final[TypeVarId]
+
         # Value restriction, empty list if no restriction
         self.values = binder.values  # type: List[Type]
+
         # Upper bound for values
-        self.upper_bound = binder.upper_bound  # type: Type
+        self.upper_bound = binder.upper_bound  # type: Final[Type]
+
         # See comments in TypeVarDef for more about variance.
-        self.variance = binder.variance  # type: int
+        self.variance = binder.variance  # type: Final[int]
+
+        self._hash = hash(self.id)  # type: Final
 
     def accept(self, visitor: 'TypeVisitor[T]') -> T:
         return visitor.visit_type_var(self)
 
     def __hash__(self) -> int:
-        return hash(self.id)
+        return self._hash
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, TypeVarType):
+        if isinstance(other, TypeVarType):
+            return self.id == other.id
+        else:
             return NotImplemented
-        return self.id == other.id
 
     def serialize(self) -> JsonDict:
         assert not self.id.is_meta_var()

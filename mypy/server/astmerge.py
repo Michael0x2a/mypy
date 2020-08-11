@@ -349,7 +349,7 @@ class TypeReplaceVisitor(SyntheticTypeVisitor[None]):
 
     def visit_type_alias_type(self, typ: TypeAliasType) -> None:
         assert typ.alias is not None
-        typ.alias = self.fixup(typ.alias)
+        typ.set_alias(self.fixup(typ.alias))
         for arg in typ.args:
             arg.accept(self)
 

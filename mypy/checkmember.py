@@ -609,11 +609,11 @@ def freeze_type_vars(member_type: Type) -> None:
         return
     if isinstance(member_type, CallableType):
         for v in member_type.variables:
-            v.id.meta_level = 0
+            v.id.freeze()
     if isinstance(member_type, Overloaded):
         for it in member_type.items():
             for v in it.variables:
-                v.id.meta_level = 0
+                v.id.freeze()
 
 
 def lookup_member_var_or_accessor(info: TypeInfo, name: str,

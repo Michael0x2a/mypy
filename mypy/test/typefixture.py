@@ -244,7 +244,7 @@ class TypeFixture:
         target = Instance(self.std_tuplei,
                           [UnionType([base, A])])  # A = Tuple[Union[base, A], ...]
         AN = TypeAlias(target, '__main__.A', -1, -1)
-        A.alias = AN
+        A.set_alias(AN)
         return A, target
 
     def def_alias_2(self, base: Instance) -> Tuple[TypeAliasType, Type]:
@@ -252,7 +252,7 @@ class TypeFixture:
         target = UnionType([base,
                             Instance(self.std_tuplei, [A])])  # A = Union[base, Tuple[A, ...]]
         AN = TypeAlias(target, '__main__.A', -1, -1)
-        A.alias = AN
+        A.set_alias(AN)
         return A, target
 
     def non_rec_alias(self, target: Type) -> TypeAliasType:

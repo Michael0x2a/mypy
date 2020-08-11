@@ -263,8 +263,7 @@ def parse_type_string(expr_string: str, expr_fallback_name: str,
         _, node = parse_type_comment(expr_string.strip(), line=line, column=column, errors=None,
                                      assume_str_is_unicode=assume_str_is_unicode)
         if isinstance(node, UnboundType) and node.original_str_expr is None:
-            node.original_str_expr = expr_string
-            node.original_str_fallback = expr_fallback_name
+            node.set_original_str_info(expr_string, expr_fallback_name)
             return node
         else:
             return RawExpressionType(expr_string, expr_fallback_name, line, column)
@@ -646,7 +645,7 @@ class ASTConverter:
         # Indicate that type should be wrapped in an Optional if arg is initialized to None.
         optional = isinstance(initializer, NameExpr) and initializer.name == 'None'
         if isinstance(type, UnboundType):
-            type.optional = optional
+            type.set_optional_status(optional)
 
     def transform_args(self,
                        args: ast3.arguments,

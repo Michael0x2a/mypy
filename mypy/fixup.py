@@ -166,7 +166,7 @@ class TypeFixer(TypeVisitor[None]):
         if type_ref is None:
             return  # We've already been here.
         t.type_ref = None
-        t.alias = lookup_qualified_alias(self.modules, type_ref, self.allow_missing)
+        t.set_alias(lookup_qualified_alias(self.modules, type_ref, self.allow_missing))
         for a in t.args:
             a.accept(self)
 
