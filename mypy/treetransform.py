@@ -167,15 +167,15 @@ class TransformVisitor(NodeVisitor[Node]):
         return new
 
     def visit_class_def(self, node: ClassDef) -> ClassDef:
+        decorators = [self.expr(decorator) for decorator in node.decorators]
         new = ClassDef(node.name,
                        self.block(node.defs),
                        node.type_vars,
                        self.expressions(node.base_type_exprs),
-                       self.optional_expr(node.metaclass))
+                       self.optional_expr(node.metaclass),
+                       decorators=decorators)
         new.fullname = node.fullname
         new.info = node.info
-        new.decorators = [self.expr(decorator)
-                          for decorator in node.decorators]
         return new
 
     def visit_global_decl(self, node: GlobalDecl) -> GlobalDecl:
@@ -249,8 +249,8 @@ class TransformVisitor(NodeVisitor[Node]):
                       self.expr(node.expr),
                       self.block(node.body),
                       self.optional_block(node.else_body),
-                      self.optional_type(node.unanalyzed_index_type))
-        new.is_async = node.is_async
+                      self.optional_type(node.unanalyzed_index_type),
+                      is_async=node.is_async)
         new.index_type = self.optional_type(node.index_type)
         return new
 
@@ -293,8 +293,8 @@ class TransformVisitor(NodeVisitor[Node]):
         new = WithStmt(self.expressions(node.expr),
                        self.optional_expressions(node.target),
                        self.block(node.body),
-                       self.optional_type(node.unanalyzed_type))
-        new.is_async = node.is_async
+                       self.optional_type(node.unanalyzed_type),
+                       is_async=node.is_async)
         new.analyzed_types = [self.type(typ) for typ in node.analyzed_types]
         return new
 

@@ -453,10 +453,9 @@ class NamedTupleAnalyzer:
                 func.is_decorated = True
                 dec = Decorator(func, [NameExpr('classmethod')], v)
                 dec.line = line
-                sym = SymbolTableNode(MDEF, dec)
+                sym = SymbolTableNode(MDEF, dec, plugin_generated=True)
             else:
-                sym = SymbolTableNode(MDEF, func)
-            sym.plugin_generated = True
+                sym = SymbolTableNode(MDEF, func, plugin_generated=True)
             info.names[funcname] = sym
 
         add_method('_replace', ret=selftype,

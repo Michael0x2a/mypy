@@ -586,8 +586,8 @@ class ASTConverter:
                         self.as_required_block(n.body, n.lineno),
                         None,
                         self.translate_expr_list(n.bases),
-                        metaclass=None)
-        cdef.decorators = self.translate_expr_list(n.decorator_list)
+                        metaclass=None,
+                        decorators=self.translate_expr_list(n.decorator_list))
         cdef.line = n.lineno + len(n.decorator_list)
         cdef.column = n.col_offset
         cdef.end_line = n.lineno

@@ -725,8 +725,8 @@ class ASTConverter:
                         None,
                         self.translate_expr_list(n.bases),
                         metaclass=dict(keywords).get('metaclass'),
-                        keywords=keywords)
-        cdef.decorators = self.translate_expr_list(n.decorator_list)
+                        keywords=keywords,
+                        decorators=self.translate_expr_list(n.decorator_list))
         # Set end_lineno to the old mypy 0.700 lineno, in order to keep
         # existing "# type: ignore" comments working:
         if sys.version_info < (3, 8):
@@ -801,8 +801,8 @@ class ASTConverter:
                        self.visit(n.iter),
                        self.as_required_block(n.body, n.lineno),
                        self.as_block(n.orelse, n.lineno),
-                       target_type)
-        node.is_async = True
+                       target_type,
+                       is_async=True)
         return self.set_line(node, n)
 
     # While(expr test, stmt* body, stmt* orelse)
@@ -835,8 +835,8 @@ class ASTConverter:
         s = WithStmt([self.visit(i.context_expr) for i in n.items],
                      [self.visit(i.optional_vars) for i in n.items],
                      self.as_required_block(n.body, n.lineno),
-                     target_type)
-        s.is_async = True
+                     target_type,
+                     is_async=True)
         return self.set_line(s, n)
 
     # Raise(expr? exc, expr? cause)

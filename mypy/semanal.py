@@ -2504,8 +2504,13 @@ class SemanticAnalyzer(NodeVisitor[None],
         # However, eagerly expanding aliases like Text = str is a nice performance optimization.
         no_args = isinstance(res, Instance) and not res.args  # type: ignore
         fix_instance_types(res, self.fail, self.note)
+
+        alias_is_normalized = False
+        if isinstance(rvalue, RefExpr) and isinstance(rvalue.node, TypeAlias):
+            alias_is_normalized = rvalue.node.normalized
         alias_node = TypeAlias(res, self.qualified_name(lvalue.name), s.line, s.column,
-                               alias_tvars=alias_tvars, no_args=no_args)
+                               alias_tvars=alias_tvars, no_args=no_args,
+                               normalized=alias_is_normalized)
         if isinstance(s.rvalue, (IndexExpr, CallExpr)):  # CallExpr is for `void = type(None)`
             s.rvalue.analyzed = TypeAliasExpr(alias_node)
             s.rvalue.analyzed.line = s.line
@@ -2539,8 +2544,6 @@ class SemanticAnalyzer(NodeVisitor[None],
                     self.defer(s)
         else:
             self.add_symbol(lvalue.name, alias_node, s)
-        if isinstance(rvalue, RefExpr) and isinstance(rvalue.node, TypeAlias):
-            alias_node.normalized = rvalue.node.normalized
         return True
 
     def analyze_lvalue(self,
